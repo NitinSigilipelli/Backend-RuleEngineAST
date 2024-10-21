@@ -32,7 +32,7 @@ public class RuleController {
         return ruleEngine.combineRules(request.getOperator(), ruleNodes);
     }
 
-    // Evaluate the rule based on provided user data
+     //Evaluate the rule based on provided user data
     @PostMapping("/evaluate")
     public boolean evaluateRule(@RequestBody EvaluateRuleRequest request) {
         Node rule = ruleEngine.createRule(request.getRuleString());

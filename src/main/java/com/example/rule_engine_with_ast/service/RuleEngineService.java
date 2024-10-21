@@ -1,6 +1,13 @@
 package com.example.rule_engine_with_ast.service;
 
+import com.example.rule_engine_with_ast.model.CombineRulesLog;
+import com.example.rule_engine_with_ast.model.CreateRuleLog;
+import com.example.rule_engine_with_ast.model.EvaluateRuleLog;
 import com.example.rule_engine_with_ast.model.Node;
+import com.example.rule_engine_with_ast.repository.CombineRuleRepository;
+import com.example.rule_engine_with_ast.repository.CreateRuleRepository;
+import com.example.rule_engine_with_ast.repository.EvaluateRuleRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -8,37 +15,62 @@ import java.util.Map;
 
 @Service
 public class RuleEngineService {
-
+    private final CreateRuleRepository createRuleRepository;
+    private final CombineRuleRepository combineRuleRepository;
+    private final EvaluateRuleRepository evaluateRuleRepository;
     // Create AST from rule string
+    @Autowired
+    public RuleEngineService(CreateRuleRepository createRuleRepository,
+                             CombineRuleRepository combineRuleRepository,
+                             EvaluateRuleRepository evaluateRuleRepository) {
+        this.createRuleRepository = createRuleRepository;
+        this.combineRuleRepository = combineRuleRepository;
+        this.evaluateRuleRepository = evaluateRuleRepository;
+    }
     public Node createRule(String ruleString) {
-        // Parsing the rule string into an AST
-        return parseRuleString(ruleString);
+        Node ruleNode = parseRuleString(ruleString);
+        CreateRuleLog createRuleLog = new CreateRuleLog();
+        createRuleLog.setRuleString(ruleString);
+        createRuleLog.setResponse(ruleNode);
+        createRuleRepository.save(createRuleLog);
+        return ruleNode;
     }
 
     // Combine multiple rules into a single AST using a specified operator (AND/OR)
     public Node combineRules(String operator, Node... rules) {
         if (rules.length == 0) return null;
+
         Node combined = rules[0];
         for (int i = 1; i < rules.length; i++) {
             combined = new Node("operator", operator, combined, rules[i]);
         }
+
+        CombineRulesLog combineRulesLog = new CombineRulesLog();
+        combineRulesLog.setRuleStrings(getRuleStrings(rules));
+        combineRulesLog.setOperator(operator);
+        combineRulesLog.setResponse(combined);
+        combineRuleRepository.save(combineRulesLog);
+
         return combined;
     }
 
     // Evaluate rule against user data
     public boolean evaluateRule(Node rule, String[] userData) {
-        // Assuming userData format: [age, department, salary, experience]
-        if (rule == null || userData == null || userData.length < 4) {
-            throw new IllegalArgumentException("Invalid rule or user data");
-        }
 
         Map<String, Object> context = new HashMap<>();
-        context.put("age", Integer.parseInt(userData[0]));
-        context.put("department", userData[1]);
-        context.put("salary", Double.parseDouble(userData[2]));
+        context.put("age", Integer.parseInt(userData[0]));         // age as an integer
+        context.put("department", userData[1]);                    // department as a string
+        context.put("salary", Double.parseDouble(userData[2]));    // salary as a double
         context.put("experience", Integer.parseInt(userData[3]));
+        boolean result = evaluateNode(rule, context);
 
-        return evaluateNode(rule, context);
+        EvaluateRuleLog evaluateRuleLog = new EvaluateRuleLog();
+        evaluateRuleLog.setRuleString(rule.toString());  // Store the string representation of the rule
+        evaluateRuleLog.setUserData(userData);
+        evaluateRuleLog.setResponse(result);
+        evaluateRuleRepository.save(evaluateRuleLog);
+
+        return result;
     }
 
     // Recursively evaluate the AST node
@@ -53,6 +85,13 @@ public class RuleEngineService {
             default:
                 throw new IllegalArgumentException("Unknown node type: " + node.getType());
         }
+    }
+    private String[] getRuleStrings(Node[] rules) {
+        String[] ruleStrings = new String[rules.length];
+        for (int i = 0; i < rules.length; i++) {
+            ruleStrings[i] = rules[i].toString();  // Assuming Node has a toString implementation
+        }
+        return ruleStrings;
     }
 
     // Evaluate an operand node
