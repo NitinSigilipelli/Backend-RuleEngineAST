@@ -1,17 +1,16 @@
 package com.example.rule_engine_with_ast.service;
 
-import com.example.rule_engine_with_ast.model.CombineRulesLog;
-import com.example.rule_engine_with_ast.model.CreateRuleLog;
-import com.example.rule_engine_with_ast.model.EvaluateRuleLog;
-import com.example.rule_engine_with_ast.model.Node;
+import com.example.rule_engine_with_ast.controller.CombineRulesRequest;
+import com.example.rule_engine_with_ast.model.*;
 import com.example.rule_engine_with_ast.repository.CombineRuleRepository;
 import com.example.rule_engine_with_ast.repository.CreateRuleRepository;
 import com.example.rule_engine_with_ast.repository.EvaluateRuleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class RuleEngineService {
@@ -27,31 +26,131 @@ public class RuleEngineService {
         this.combineRuleRepository = combineRuleRepository;
         this.evaluateRuleRepository = evaluateRuleRepository;
     }
-    public Node createRule(String ruleString) {
-        Node ruleNode = parseRuleString(ruleString);
-        CreateRuleLog createRuleLog = new CreateRuleLog();
-        createRuleLog.setRuleString(ruleString);
-        createRuleLog.setResponse(ruleNode);
-        createRuleRepository.save(createRuleLog);
-        return ruleNode;
+    public static Node createRule(String ruleString) {
+        List<String> tokens = tokenize(ruleString);
+        return parseExpression(tokens.listIterator());
     }
 
-    // Combine multiple rules into a single AST using a specified operator (AND/OR)
-    public Node combineRules(String operator, Node... rules) {
-        if (rules.length == 0) return null;
+    // Tokenize the rule string into meaningful components (AND, OR, >, <, etc.)
+    private static List<String> tokenize(String rule) {
+        List<String> tokens = new ArrayList<>();
+        Matcher matcher = Pattern.compile("\\(|\\)|AND|OR|>=|<=|>|<|=|\\w+|'[^']*'|\\d+").matcher(rule);
 
-        Node combined = rules[0];
-        for (int i = 1; i < rules.length; i++) {
-            combined = new Node("operator", operator, combined, rules[i]);
+        while (matcher.find()) {
+            tokens.add(matcher.group());
+        }
+        return tokens;
+    }
+
+    // Parse expressions, handling "OR" with the lowest precedence
+    private static Node parseExpression(ListIterator<String> tokens) {
+        Node left = parseTerm(tokens);
+
+        while (tokens.hasNext()) {
+            String token = tokens.next();
+            if (token.equals("OR")) {
+                Node right = parseTerm(tokens);
+                left = new Node("operator", "OR", left, right);
+            } else {
+                // Rewind the token if it's not "OR"
+                tokens.previous();
+                break;
+            }
+        }
+        return left;
+    }
+
+    // Parse terms, handling "AND" with medium precedence
+    private static Node parseTerm(ListIterator<String> tokens) {
+        Node left = parseFactor(tokens);
+
+        while (tokens.hasNext()) {
+            String token = tokens.next();
+            if (token.equals("AND")) {
+                Node right = parseFactor(tokens);
+                left = new Node("operator", "AND", left, right);
+            } else {
+                // Rewind the token if it's not "AND"
+                tokens.previous();
+                break;
+            }
+        }
+        return left;
+    }
+
+    // Parse factors (operands or nested expressions)
+    private static Node parseFactor(ListIterator<String> tokens) {
+        String token = tokens.next();
+
+        if (token.equals("(")) {
+            // Handle nested expression inside parentheses
+            Node expression = parseExpression(tokens);
+            tokens.next(); // Consume closing parenthesis ")"
+            return expression;
+        } else {
+            // Handle operand (e.g., age > 30)
+            String attribute = token;            // e.g., "age"
+            String comparison = tokens.next();   // e.g., ">"
+            String valueToken = tokens.next();   // e.g., "30"
+            Object value = parseValue(valueToken);
+
+            // Create operand node with attribute, comparison, and value
+            return new Node("operand", attribute + " " + comparison + " " + value, null, null);
+        }
+    }
+
+    // Convert value token into the appropriate type (integer or string)
+    private static Object parseValue(String token) {
+        if (token.matches("\\d+")) {
+            return Integer.parseInt(token); // Numeric value
+        } else if (token.startsWith("'") && token.endsWith("'")) {
+            return token.substring(1, token.length() - 1); // String value (without quotes)
+        }
+        throw new IllegalArgumentException("Invalid value: " + token);
+    }
+
+    public Node combineRulesWithOperator(String[] ruleStrings, String operator) {
+        if (ruleStrings == null || ruleStrings.length == 0) {
+            throw new IllegalArgumentException("Rule list cannot be null or empty.");
         }
 
-        CombineRulesLog combineRulesLog = new CombineRulesLog();
-        combineRulesLog.setRuleStrings(getRuleStrings(rules));
-        combineRulesLog.setOperator(operator);
-        combineRulesLog.setResponse(combined);
-        combineRuleRepository.save(combineRulesLog);
+        List<Node> asts = new ArrayList<>();
+        Map<String, Integer> operatorFrequency = new HashMap<>();
 
-        return combined;
+        for (String rule : ruleStrings) {
+            Node ast = createRule(rule);
+            asts.add(ast);
+
+            // If no operator is provided, calculate frequency for heuristic selection
+            if (operator == null || operator.isEmpty()) {
+                countOperators(rule, operatorFrequency);
+            }
+        }
+
+        // Determine the operator if it's not provided
+        String combineOperator;
+        if (operator == null || operator.isEmpty()) {
+            combineOperator = operatorFrequency.getOrDefault("AND", 0) >= operatorFrequency.getOrDefault("OR", 0) ? "AND" : "OR";
+        } else {
+            combineOperator = operator.toUpperCase(); // Use the user-provided operator
+        }
+
+        // Combine the ASTs using the selected operator
+        Node combinedAST = asts.get(0);
+        for (int i = 1; i < asts.size(); i++) {
+            combinedAST = new Node("operator", combineOperator, combinedAST, asts.get(i));
+        }
+
+        return combinedAST;
+    }
+
+    // Helper function to count operators in the rule string (as in the earlier example)
+    private static void countOperators(String rule, Map<String, Integer> operatorFrequency) {
+        Matcher matcher = Pattern.compile("AND|OR").matcher(rule);
+        while (matcher.find()) {
+            String operator = matcher.group();
+            operatorFrequency.put(operator, operatorFrequency.getOrDefault(operator, 0) + 1);
+        }
     }
 
     // Evaluate rule against user data
@@ -85,13 +184,6 @@ public class RuleEngineService {
             default:
                 throw new IllegalArgumentException("Unknown node type: " + node.getType());
         }
-    }
-    private String[] getRuleStrings(Node[] rules) {
-        String[] ruleStrings = new String[rules.length];
-        for (int i = 0; i < rules.length; i++) {
-            ruleStrings[i] = rules[i].toString();  // Assuming Node has a toString implementation
-        }
-        return ruleStrings;
     }
 
     // Evaluate an operand node
@@ -157,23 +249,6 @@ public class RuleEngineService {
                 return leftResult || rightResult;
             default:
                 throw new IllegalArgumentException("Unknown operator: " + node.getValue());
-        }
-    }
-
-    // Simple parsing method to generate AST from rule string
-    private Node parseRuleString(String ruleString) {
-        if (ruleString.contains("AND")) {
-            String[] parts = ruleString.split("AND", 2);
-            Node left = parseRuleString(parts[0].trim());
-            Node right = parseRuleString(parts[1].trim());
-            return new Node("operator", "AND", left, right);
-        } else if (ruleString.contains("OR")) {
-            String[] parts = ruleString.split("OR", 2);
-            Node left = parseRuleString(parts[0].trim());
-            Node right = parseRuleString(parts[1].trim());
-            return new Node("operator", "OR", left, right);
-        } else {
-            return new Node("operand", ruleString.trim(), null, null);
         }
     }
 }

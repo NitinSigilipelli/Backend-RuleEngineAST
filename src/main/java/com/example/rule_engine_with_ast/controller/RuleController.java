@@ -3,6 +3,7 @@ package com.example.rule_engine_with_ast.controller;
 import com.example.rule_engine_with_ast.model.Node;
 import com.example.rule_engine_with_ast.service.RuleEngineService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -19,23 +20,22 @@ public class RuleController {
     // Create a new rule from a rule string
     @PostMapping("/create")
     public Node createRule(@RequestBody RuleRequest ruleRequest) {
-        return ruleEngine.createRule(ruleRequest.getRuleString());
+        return RuleEngineService.createRule(ruleRequest.getRuleString());
     }
 
-    // Combine multiple rules using a logical operator (AND/OR)
+
     @PostMapping("/combine")
     public Node combineRules(@RequestBody CombineRulesRequest request) {
-        Node[] ruleNodes = new Node[request.getRuleStrings().length];
-        for (int i = 0; i < request.getRuleStrings().length; i++) {
-            ruleNodes[i] = ruleEngine.createRule(request.getRuleStrings()[i]);
-        }
-        return ruleEngine.combineRules(request.getOperator(), ruleNodes);
-    }
+        String[] ruleStrings = request.getRuleStrings();
+        String operator = request.getOperator();
 
-     //Evaluate the rule based on provided user data
+        // Pass the rule strings and optional operator to the service
+        return ruleEngine.combineRulesWithOperator(ruleStrings, operator);
+    }
+//     //Evaluate the rule based on provided user data
     @PostMapping("/evaluate")
     public boolean evaluateRule(@RequestBody EvaluateRuleRequest request) {
-        Node rule = ruleEngine.createRule(request.getRuleString());
+        Node rule = RuleEngineService.createRule(request.getRuleString());
         return ruleEngine.evaluateRule(rule, request.getUserData());
     }
 }
