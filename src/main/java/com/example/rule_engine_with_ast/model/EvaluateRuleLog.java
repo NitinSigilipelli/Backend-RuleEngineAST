@@ -3,16 +3,19 @@ package com.example.rule_engine_with_ast.model;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-@Document(collection = "evaluate_rules")
+import java.util.Date;
+
+@Document(collection = "rule_evaluation_logs")
 public class EvaluateRuleLog {
     @Id
-    private String id;
-    private String ruleString;
-    private String[] userData;
-    private boolean response;
+    private String id; // Automatically generated ID
 
-    // Constructors, getters, and setters
-    public EvaluateRuleLog() {}
+    private String ruleString; // The rule string
+    private String[] userData; // User data used for evaluation
+    private boolean response; // The evaluation result
+    private Date timestamp; // Timestamp for when the evaluation was made
+
+    // Getters and Setters
 
     public String getId() {
         return id;
@@ -44,5 +47,13 @@ public class EvaluateRuleLog {
 
     public void setResponse(boolean response) {
         this.response = response;
+    }
+
+    public Date getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(Date timestamp) {
+        this.timestamp = timestamp;
     }
 }

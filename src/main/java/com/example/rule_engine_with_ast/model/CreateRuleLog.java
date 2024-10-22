@@ -3,12 +3,15 @@ package com.example.rule_engine_with_ast.model;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.Date;
+
 @Document(collection = "create_rules")
 public class CreateRuleLog {
     @Id
     private String id;
     private String ruleString;
     private Node response;
+    private Date timestamp;
 
     // Constructors, getters, and setters
     public CreateRuleLog() {}
@@ -35,5 +38,12 @@ public class CreateRuleLog {
 
     public void setResponse(Node response) {
         this.response = response;
+    }
+    public Date getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(Date timestamp) {
+        this.timestamp = timestamp;
     }
 }

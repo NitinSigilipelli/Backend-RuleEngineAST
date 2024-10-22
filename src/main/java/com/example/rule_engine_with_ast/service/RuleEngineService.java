@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 
 @Service
 public class RuleEngineService {
-    private final CreateRuleRepository createRuleRepository;
+    private static CreateRuleRepository createRuleRepository = null;
     private final CombineRuleRepository combineRuleRepository;
     private final EvaluateRuleRepository evaluateRuleRepository;
     // Create AST from rule string
@@ -28,7 +28,13 @@ public class RuleEngineService {
     }
     public static Node createRule(String ruleString) {
         List<String> tokens = tokenize(ruleString);
-        return parseExpression(tokens.listIterator());
+        CreateRuleLog createRuleLog = new CreateRuleLog();
+        createRuleLog.setRuleString(ruleString);
+        Node result = parseExpression(tokens.listIterator());
+        createRuleLog.setResponse(result);
+        createRuleLog.setTimestamp(new Date());
+        createRuleRepository.save(createRuleLog);
+        return result;
     }
 
     // Tokenize the rule string into meaningful components (AND, OR, >, <, etc.)
@@ -140,7 +146,11 @@ public class RuleEngineService {
         for (int i = 1; i < asts.size(); i++) {
             combinedAST = new Node("operator", combineOperator, combinedAST, asts.get(i));
         }
-
+        CombineRulesLog combineRulesLog = new CombineRulesLog();
+        combineRulesLog.setResponse(combinedAST);
+        combineRulesLog.setRuleStrings(ruleStrings);
+        combineRulesLog.setOperator(operator);
+        combineRuleRepository.save(combineRulesLog);
         return combinedAST;
     }
 
@@ -167,6 +177,7 @@ public class RuleEngineService {
         evaluateRuleLog.setRuleString(rule.toString());  // Store the string representation of the rule
         evaluateRuleLog.setUserData(userData);
         evaluateRuleLog.setResponse(result);
+        evaluateRuleLog.setTimestamp(new Date());
         evaluateRuleRepository.save(evaluateRuleLog);
 
         return result;
