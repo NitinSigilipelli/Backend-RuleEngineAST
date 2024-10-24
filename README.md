@@ -72,7 +72,7 @@ Intellij Idea / Visual Studio Code (VS Code)
 ### Clone the Repository:
 
 ```bash
-git clone 
+git clone https://github.com/NitinSigilipelli/Backend-RuleEngineAST.git
 ```
 ## VS Code Setup
 
