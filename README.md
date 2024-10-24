@@ -138,7 +138,7 @@ Simply run:
   ./gradlew bootRun
   ```
 4.Or just run the `RuleEngineWithASTApplication.java` to start the server
-4.The application will start, and you can access the API at http://localhost:8081/api/rules
+5.The application will start, and you can access the API at http://localhost:8081/api/rules
 
 
 
