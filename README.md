@@ -137,7 +137,7 @@ Simply run:
   ```bash
   ./gradlew bootRun
   ```
-4.Or just run the `RuleEngineWithASTApplication.java` to start the server
+4.Or just run the `RuleEngineWithASTApplication.java` to start the server.
 5.The application will start, and you can access the API at http://localhost:8081/api/rules
 
 
